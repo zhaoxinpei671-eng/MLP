@@ -6,7 +6,7 @@ import math
 import random
 from dataclasses import dataclass
 from pathlib import Path
-from typing import List, Optional, Sequence, Tuple
+from typing import List, Optional, Sequence, Tuple, Union
 
 Number = float
 
@@ -358,3 +358,72 @@ def format_predictions(
         for row in rows
     ]
     return "\n".join([header_line, separator_line, *body_lines])
+
+
+def plot_loss_curve(
+    losses: Sequence[Number],
+    save_path: Optional[Union[str, Path]] = None,
+    width: int = 640,
+    height: int = 360,
+) -> Path:
+    """Render the training loss history to a simple SVG line chart."""
+
+    if not losses:
+        raise ValueError("losses must contain at least one value")
+
+    svg_path = Path(save_path) if save_path is not None else Path("loss_curve.svg")
+    svg_path.parent.mkdir(parents=True, exist_ok=True)
+
+    min_loss = min(losses)
+    max_loss = max(losses)
+    margin = 40.0
+    plot_width = max(1.0, width - 2 * margin)
+    plot_height = max(1.0, height - 2 * margin)
+
+    def x_coord(index: int) -> float:
+        if len(losses) == 1:
+            return margin + plot_width / 2.0
+        step = plot_width / float(len(losses) - 1)
+        return margin + index * step
+
+    def y_coord(loss_value: Number) -> float:
+        if max_loss == min_loss:
+            return margin + plot_height / 2.0
+        normalized = (loss_value - min_loss) / (max_loss - min_loss)
+        return height - margin - normalized * plot_height
+
+    points = " ".join(f"{x_coord(idx):.2f},{y_coord(value):.2f}" for idx, value in enumerate(losses))
+
+    axis_lines = [
+        f"<line x1='{margin}' y1='{height - margin}' x2='{width - margin}' y2='{height - margin}' stroke='#444' stroke-width='1' />",
+        f"<line x1='{margin}' y1='{margin}' x2='{margin}' y2='{height - margin}' stroke='#444' stroke-width='1' />",
+    ]
+
+    labels = [
+        f"<text x='{margin}' y='{margin - 10}' fill='#222' font-size='14'>Loss</text>",
+        f"<text x='{width - margin}' y='{height - margin + 25}' fill='#222' font-size='14' text-anchor='end'>Epoch</text>",
+        f"<text x='{margin + 5}' y='{height - margin - 5}' fill='#666' font-size='12'>epoch 1</text>",
+        f"<text x='{width - margin - 5}' y='{margin + 15}' fill='#666' font-size='12' text-anchor='end'>epoch {len(losses)}</text>",
+        f"<text x='{margin + 5}' y='{margin + 15}' fill='#666' font-size='12'>max: {max_loss:.6f}</text>",
+        f"<text x='{margin + 5}' y='{margin + 30}' fill='#666' font-size='12'>min: {min_loss:.6f}</text>",
+    ]
+
+    svg_content = """<?xml version='1.0' encoding='UTF-8'?>
+<svg xmlns='http://www.w3.org/2000/svg' width='{width}' height='{height}' viewBox='0 0 {width} {height}'>
+  <rect x='0' y='0' width='{width}' height='{height}' fill='white' stroke='none'/>
+  {axes}
+  <polyline fill='none' stroke='#2E86AB' stroke-width='2' points='{points}' />
+  {labels}
+</svg>
+""".format(
+        width=width,
+        height=height,
+        axes="\n  ".join(axis_lines),
+        points=points,
+        labels="\n  ".join(labels),
+    )
+
+    with svg_path.open("w", encoding="utf-8") as handle:
+        handle.write(svg_content)
+
+    return svg_path
