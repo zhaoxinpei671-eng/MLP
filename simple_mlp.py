@@ -165,7 +165,7 @@ class SimpleMLP:
             if layer_idx == len(self.weights) - 1:
                 current = [7.0 * self._sigmoid(z) for z in z_values]
             else:
-                current = [math.tanh(z) for z in z_values]
+                current = [z if z > 0.0 else 0.0 for z in z_values]
             activations.append(current)
         return activations, linear_outputs
 
@@ -214,7 +214,7 @@ class SimpleMLP:
                 for sample_idx in batch_indices:
                     inputs = features[sample_idx]
                     expected = targets[sample_idx]
-                    activations, _ = self.forward(inputs)
+                    activations, linear_outputs = self.forward(inputs)
                     output_activation = activations[-1]
                     output_dim = len(output_activation)
 
@@ -241,8 +241,8 @@ class SimpleMLP:
                             backprop_sum = 0.0
                             for next_idx in range(len(self.biases[next_layer])):
                                 backprop_sum += self.weights[layer_idx + 1][neuron_idx][next_idx] * deltas[next_layer][next_idx]
-                            activation_value = activations[layer_idx + 1][neuron_idx]
-                            derivative = 1.0 - activation_value * activation_value
+                            pre_activation = linear_outputs[layer_idx][neuron_idx]
+                            derivative = 1.0 if pre_activation > 0.0 else 0.0
                             deltas[layer_idx][neuron_idx] = backprop_sum * derivative
 
                     for layer_idx in range(len(self.weights)):
