@@ -163,7 +163,7 @@ class SimpleMLP:
             linear_outputs.append(z_values)
 
             if layer_idx == len(self.weights) - 1:
-                current = [7.0 * self._sigmoid(z) for z in z_values]
+                current = [z for z in z_values]
             else:
                 current = [z if z > 0.0 else 0.0 for z in z_values]
             activations.append(current)
@@ -230,10 +230,7 @@ class SimpleMLP:
                         prediction = output_activation[neuron_idx]
                         target_value = expected[neuron_idx]
                         diff = prediction - target_value
-                        grad_output = 2.0 * diff
-                        sigmoid_output = prediction / 7.0
-                        delta_value = grad_output * 7.0 * sigmoid_output * (1.0 - sigmoid_output)
-                        deltas[last_layer][neuron_idx] = delta_value
+                        deltas[last_layer][neuron_idx] = 2.0 * diff
 
                     for layer_idx in range(len(self.weights) - 2, -1, -1):
                         next_layer = layer_idx + 1
