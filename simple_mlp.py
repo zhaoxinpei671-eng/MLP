@@ -192,11 +192,12 @@ class SimpleMLP:
         num_samples = len(features)
         indices = list(range(num_samples))
         losses: List[Number] = []
+        dataset_size = float(num_samples)
 
         for epoch in range(1, epochs + 1):
             random.shuffle(indices)
-            cumulative_loss = 0.0
-            num_batches = 0
+            cumulative_sse = 0.0
+            sample_count = 0
 
             for start in range(0, num_samples, batch_size):
                 batch_indices = indices[start : start + batch_size]
@@ -208,7 +209,7 @@ class SimpleMLP:
                     for layer_idx in range(len(self.weights))
                 ]
                 grad_b = [[0.0 for _ in bias_layer] for bias_layer in self.biases]
-                batch_loss = 0.0
+                batch_sse = 0.0
 
                 for sample_idx in batch_indices:
                     inputs = features[sample_idx]
@@ -217,8 +218,8 @@ class SimpleMLP:
                     output_activation = activations[-1]
                     output_dim = len(output_activation)
 
-                    sample_loss = sum((output_activation[i] - expected[i]) ** 2 for i in range(output_dim)) / output_dim
-                    batch_loss += sample_loss
+                    sample_sse = sum((output_activation[i] - expected[i]) ** 2 for i in range(output_dim))
+                    batch_sse += sample_sse
 
                     deltas: List[List[Number]] = [
                         [0.0 for _ in bias_layer] for bias_layer in self.biases
@@ -229,7 +230,7 @@ class SimpleMLP:
                         prediction = output_activation[neuron_idx]
                         target_value = expected[neuron_idx]
                         diff = prediction - target_value
-                        grad_output = (2.0 / output_dim) * diff
+                        grad_output = 2.0 * diff
                         sigmoid_output = prediction / 7.0
                         delta_value = grad_output * 7.0 * sigmoid_output * (1.0 - sigmoid_output)
                         deltas[last_layer][neuron_idx] = delta_value
@@ -260,21 +261,33 @@ class SimpleMLP:
                             weight = self.weights[layer_idx][input_idx][neuron_idx]
                             if self.l1_coeff:
                                 if weight > 0:
-                                    grad += self.l1_coeff
+                                    grad += self.l1_coeff / dataset_size
                                 elif weight < 0:
-                                    grad -= self.l1_coeff
+                                    grad -= self.l1_coeff / dataset_size
                             self.weights[layer_idx][input_idx][neuron_idx] -= self.learning_rate * grad
                     for neuron_idx in range(len(self.biases[layer_idx])):
                         grad = grad_b[layer_idx][neuron_idx] / batch_size_actual
                         self.biases[layer_idx][neuron_idx] -= self.learning_rate * grad
 
-                cumulative_loss += batch_loss / len(batch_indices)
-                num_batches += 1
+                cumulative_sse += batch_sse
+                sample_count += len(batch_indices)
 
-            epoch_loss = cumulative_loss / max(1, num_batches)
+            data_loss = cumulative_sse / max(1, sample_count)
+            if self.l1_coeff:
+                total_abs_weights = sum(
+                    abs(weight)
+                    for layer in self.weights
+                    for row in layer
+                    for weight in row
+                )
+                l1_term = (self.l1_coeff * total_abs_weights) / dataset_size
+            else:
+                l1_term = 0.0
+
+            epoch_loss = data_loss + l1_term
             losses.append(epoch_loss)
             if verbose_interval and (epoch % verbose_interval == 0 or epoch == 1):
-                print(f"Epoch {epoch:03d} - Avg batch loss: {epoch_loss:.6f}")
+                print(f"Epoch {epoch:03d} - Loss: {epoch_loss:.6f}")
         return losses
 
 
